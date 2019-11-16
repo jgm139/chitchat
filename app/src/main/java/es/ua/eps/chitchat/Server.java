@@ -9,9 +9,8 @@ import android.widget.TextView;
 
 import androidx.appcompat.app.AppCompatActivity;
 
-import java.io.BufferedReader;
+import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.InputStreamReader;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -21,11 +20,8 @@ public class Server extends AppCompatActivity {
     public static final int SERVER_PORT = 1331;
     Handler updateConversationHandler;
     Thread serverThread = null;
-    private WifiManager wifiManager;
-    private String ip;
 
-    private TextView text;
-    private TextView ip_view;
+    private TextView textMessages;
 
 
     @Override
@@ -34,19 +30,13 @@ public class Server extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        text = findViewById(R.id.text);
-        ip_view = findViewById(R.id.ip_view);
-
-        this.wifiManager = (WifiManager) this.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        ip = getIpFormat(this.wifiManager.getConnectionInfo().getIpAddress());
-
-        ip_view.setText(ip);
+        textMessages = findViewById(R.id.textMessages);
+        ipserver();
 
         updateConversationHandler = new Handler();
 
         this.serverThread = new Thread(new ServerThread());
         this.serverThread.start();
-
     }
 
     @Override
@@ -57,6 +47,16 @@ public class Server extends AppCompatActivity {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    private void ipserver() {
+        WifiManager wifiManager;
+        String ip;
+
+        wifiManager = (WifiManager) this.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+        ip = getIpFormat(wifiManager.getConnectionInfo().getIpAddress());
+
+        Log.d("INFORMATION", "IP Server: " + ip);
     }
 
     private static String getIpFormat(int code) {
@@ -75,7 +75,7 @@ public class Server extends AppCompatActivity {
             Socket socket = null;
 
             try {
-                Log.d("DebugApp", "Abriendo ServerSocket en el puerto " + SERVER_PORT);
+                Log.d("INFORMATION", "Abriendo ServerSocket en el puerto " + SERVER_PORT);
                 serverSocket = new ServerSocket(SERVER_PORT);
             } catch (IOException e) {
                 e.printStackTrace();
@@ -99,13 +99,13 @@ public class Server extends AppCompatActivity {
 
     class CommunicationThread implements Runnable {
         private Socket clientSocket;
-        private BufferedReader input;
+        private DataInputStream input;
 
         public CommunicationThread(Socket clientSocket) {
             this.clientSocket = clientSocket;
 
             try {
-                this.input = new BufferedReader(new InputStreamReader(this.clientSocket.getInputStream()));
+                this.input = new DataInputStream(this.clientSocket.getInputStream());
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -115,7 +115,7 @@ public class Server extends AppCompatActivity {
         public void run() {
             while (!Thread.currentThread().isInterrupted()) {
                 try {
-                    String read = input.readLine();
+                    String read = input.readUTF();
 
                     updateConversationHandler.post(new updateUIThread(read));
                 } catch (IOException e) {
@@ -134,7 +134,7 @@ public class Server extends AppCompatActivity {
 
         @Override
         public void run() {
-            Log.d( "DebugApp", text.getText().toString()+"Client Says: "+ msg + "\n");
+            textMessages.setText("Client Says: " + msg);
         }
     }
 
