@@ -2,8 +2,8 @@ package es.ua.eps.chitchat;
 
 import android.content.Context;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.os.Bundle;
-import android.os.Handler;
 import android.util.Log;
 import android.widget.TextView;
 
@@ -18,9 +18,7 @@ public class Server extends AppCompatActivity {
 
     private ServerSocket serverSocket;
     public static final int SERVER_PORT = 1331;
-    Handler updateConversationHandler;
-    Thread serverThread = null;
-
+    Thread serverThread;
     private TextView textMessages;
 
 
@@ -33,10 +31,9 @@ public class Server extends AppCompatActivity {
         textMessages = findViewById(R.id.textMessages);
         ipserver();
 
-        updateConversationHandler = new Handler();
+        serverThread = new Thread(new ServerThread());
 
-        this.serverThread = new Thread(new ServerThread());
-        this.serverThread.start();
+        serverThread.start();
     }
 
     @Override
@@ -87,7 +84,7 @@ public class Server extends AppCompatActivity {
                     socket = serverSocket.accept();
 
                     CommunicationThread communicationThread = new CommunicationThread(socket);
-                    new Thread(communicationThread).start();
+                    communicationThread.execute();
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -97,9 +94,10 @@ public class Server extends AppCompatActivity {
         }
     }
 
-    class CommunicationThread implements Runnable {
+    class CommunicationThread extends AsyncTask {
         private Socket clientSocket;
         private DataInputStream input;
+        private String read;
 
         public CommunicationThread(Socket clientSocket) {
             this.clientSocket = clientSocket;
@@ -112,29 +110,18 @@ public class Server extends AppCompatActivity {
         }
 
         @Override
-        public void run() {
-            while (!Thread.currentThread().isInterrupted()) {
-                try {
-                    String read = input.readUTF();
-
-                    updateConversationHandler.post(new updateUIThread(read));
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
+        protected Object doInBackground(Object[] objects) {
+            try {
+                read = input.readUTF();
+            } catch (IOException e) {
+                e.printStackTrace();
             }
-        }
-    }
-
-    class updateUIThread implements Runnable {
-        private String msg;
-
-        public updateUIThread(String str) {
-            this.msg = str;
+            return null;
         }
 
         @Override
-        public void run() {
-            textMessages.setText("Client Says: " + msg);
+        protected void onPostExecute(Object o) {
+            textMessages.setText("Client Says: " + read);
         }
     }
 
