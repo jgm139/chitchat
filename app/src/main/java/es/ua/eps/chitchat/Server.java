@@ -10,16 +10,22 @@ import android.widget.TextView;
 import androidx.appcompat.app.AppCompatActivity;
 
 import java.io.DataInputStream;
+import java.io.DataOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.Map;
 
 public class Server extends AppCompatActivity {
 
     private ServerSocket serverSocket;
     public static final int SERVER_PORT = 1331;
-    Thread serverThread;
+    private Thread serverThread;
     private TextView textMessages;
+    private HashMap<String, Socket> clientes;
 
 
     @Override
@@ -29,6 +35,7 @@ public class Server extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         textMessages = findViewById(R.id.textMessages);
+        clientes = new HashMap<>();
         ipserver();
 
         serverThread = new Thread(new ServerThread());
@@ -83,8 +90,12 @@ public class Server extends AppCompatActivity {
                 try {
                     socket = serverSocket.accept();
 
-                    CommunicationThread communicationThread = new CommunicationThread(socket);
-                    communicationThread.execute();
+                    String id_client = "ID"+socket.getInetAddress();
+
+                    clientes.put(id_client, socket);
+
+                    ReadThread readThread = new ReadThread(id_client, socket);
+                    readThread.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -94,13 +105,16 @@ public class Server extends AppCompatActivity {
         }
     }
 
-    class CommunicationThread extends AsyncTask {
+    class ReadThread extends AsyncTask {
         private Socket clientSocket;
+        private String id_writer;
         private DataInputStream input;
         private String read;
+        String line;
 
-        public CommunicationThread(Socket clientSocket) {
+        public ReadThread(String id, Socket clientSocket) {
             this.clientSocket = clientSocket;
+            this.id_writer = id;
 
             try {
                 this.input = new DataInputStream(this.clientSocket.getInputStream());
@@ -111,17 +125,59 @@ public class Server extends AppCompatActivity {
 
         @Override
         protected Object doInBackground(Object[] objects) {
-            try {
-                read = input.readUTF();
-            } catch (IOException e) {
-                e.printStackTrace();
+            while (!this.clientSocket.isClosed()) {
+                try {
+                    read = input.readUTF();
+                    line = id_writer + " says: " + read;
+
+                    this.publishProgress();
+
+                    if(read != null && !read.equals("")) {
+                        WriteThread writeThread = new WriteThread(id_writer, line);
+                        writeThread.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+                    }
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
             }
             return null;
         }
 
         @Override
-        protected void onPostExecute(Object o) {
-            textMessages.setText("Client Says: " + read);
+        protected void onProgressUpdate(Object[] values) {
+            textMessages.append(line + "\n");
+        }
+    }
+
+    class WriteThread extends AsyncTask {
+        private ArrayList<DataOutputStream> outputs;
+        String messageToSend;
+
+        public WriteThread(String id_writer, String messageToSend) {
+            this.messageToSend = messageToSend;
+            outputs = new ArrayList<>();
+
+            for (Map.Entry<String, Socket> client : clientes.entrySet()) {
+                try {
+                    this.outputs.add(new DataOutputStream(client.getValue().getOutputStream()));
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+        }
+
+        @Override
+        protected Object doInBackground(Object[] objects) {
+            for (DataOutputStream output : outputs) {
+                try {
+                    output.writeUTF(messageToSend);
+                    output.flush();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+
+            return null;
         }
     }
 
