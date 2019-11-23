@@ -1,2 +1,2 @@
 include ':app'
-rootProject.name='ChitChat'
+rootProject.name='ChitChat_Server'
