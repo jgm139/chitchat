@@ -21,33 +21,34 @@ import java.util.Map;
 
 public class Server extends AppCompatActivity {
 
-    private ServerSocket serverSocket;
-    public static final int SERVER_PORT = 1331;
-    private Thread serverThread;
-    private TextView textMessages;
-    private HashMap<String, Socket> clientes;
+    //Variables globales y atributos de la clase
+    private ServerSocket serverSocket;// socket del servidor
+    public static final int SERVER_PORT = 1331; //número de puerto del socket
+    private Thread serverThread; //hilo de la ejecución del servidor
+    private TextView textMessages; //vista donde se muestran los mensajes llegados al servidor
+    private HashMap<String, Socket> clientes; // mapeo de los diferentes clientes conectados al servidor
 
 
     @Override
     public void onCreate(Bundle savedInstanceState) {
 
         super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
+        setContentView(R.layout.activity_main); //selección de la vista para el activity
 
-        textMessages = findViewById(R.id.textMessages);
-        clientes = new HashMap<>();
-        ipserver();
+        textMessages = findViewById(R.id.textMessages); // asignación del textview a su variable
+        clientes = new HashMap<>(); //inicializa la variable de mapeo
+        ipserver(); //se utiliza el método para obtener la ip del dispositivo
 
-        serverThread = new Thread(new ServerThread());
+        serverThread = new Thread(new ServerThread()); //se inicializa el hilo del servidor
 
-        serverThread.start();
+        serverThread.start(); //se ejecuta el hilo del servidor
     }
 
     @Override
     protected void onStop() {
         super.onStop();
         try {
-            serverSocket.close();
+            serverSocket.close(); //se cierra el socket al parar la aplicación
         } catch (IOException e) {
             e.printStackTrace();
         }
@@ -57,8 +58,8 @@ public class Server extends AppCompatActivity {
         WifiManager wifiManager;
         String ip;
 
-        wifiManager = (WifiManager) this.getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-        ip = getIpFormat(wifiManager.getConnectionInfo().getIpAddress());
+        wifiManager = (WifiManager) this.getApplicationContext().getSystemService(Context.WIFI_SERVICE); //se obtiene el manejador del parámetros del wifi
+        ip = getIpFormat(wifiManager.getConnectionInfo().getIpAddress()); //se obtiene la ip formateada
 
         Log.d("INFORMATION", "IP Server: " + ip);
     }
@@ -66,6 +67,7 @@ public class Server extends AppCompatActivity {
     private static String getIpFormat(int code) {
         String result;
 
+        //se utilizan desplazamientos de bits para formatear la ip
         result = String.format("%d.%d.%d.%d", (code & 0xff), (code >> 8 & 0xff), (code >> 16 & 0xff), (code >> 24 & 0xff));
 
         return result;
@@ -80,7 +82,7 @@ public class Server extends AppCompatActivity {
 
             try {
                 Log.d("INFORMATION", "Abriendo ServerSocket en el puerto " + SERVER_PORT);
-                serverSocket = new ServerSocket(SERVER_PORT);
+                serverSocket = new ServerSocket(SERVER_PORT); //se instancia el socket del servidor indicando el puerto que va a utilizar
             } catch (IOException e) {
                 e.printStackTrace();
             }
@@ -88,14 +90,14 @@ public class Server extends AppCompatActivity {
             while (!Thread.currentThread().isInterrupted()) {
 
                 try {
-                    socket = serverSocket.accept();
+                    socket = serverSocket.accept(); //acepta conexiones de sockets de clientes
 
-                    String id_client = "ID"+socket.getInetAddress();
+                    String id_client = "ID"+socket.getInetAddress(); //guardamos la ip del cliente
 
-                    clientes.put(id_client, socket);
+                    clientes.put(id_client, socket); //añadimos al mapeo de clientes el socket y la ip que identifica al cliente
 
-                    ReadThread readThread = new ReadThread(id_client, socket);
-                    readThread.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
+                    ReadThread readThread = new ReadThread(id_client, socket); //instanciamos un hilo asíncrono para leer mensajes de clientes
+                    readThread.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR); //ejecutamos el hilo asíncrono
 
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -106,12 +108,13 @@ public class Server extends AppCompatActivity {
     }
 
     class ReadThread extends AsyncTask {
-        private Socket clientSocket;
-        private String id_writer;
-        private DataInputStream input;
-        private String read;
-        String line;
+        private Socket clientSocket; //socket del cliente
+        private String id_writer; //ip cliente
+        private DataInputStream input; //flujo de datos de entrada
+        private String read; //mensaje recibido
+        String line; // mensaje que muestra el servidor indicando qué mensaje y de quién ha llegado
 
+        //constructor para inicializar atributos de la clase
         public ReadThread(String id, Socket clientSocket) {
             this.clientSocket = clientSocket;
             this.id_writer = id;
@@ -125,14 +128,14 @@ public class Server extends AppCompatActivity {
 
         @Override
         protected Object doInBackground(Object[] objects) {
-            while (!this.clientSocket.isClosed()) {
+            while (!this.clientSocket.isClosed()) { //mientras la conexión el cliente esté abierta
                 try {
-                    read = input.readUTF();
-                    line = id_writer + " says: " + read;
+                    read = input.readUTF(); //lee los mensajes recibidos
+                    line = id_writer + " says: " + read; //construye el mensaje que muestra el servidor
 
-                    this.publishProgress();
+                    this.publishProgress(); //actualiza la vista de texto del servidor con el nuevo mensaje llegado
 
-                    if(read != null && !read.equals("")) {
+                    if(read != null && !read.equals("")) { //cuando ha llegado un mensaje inicia el hilo de respuesta
                         WriteThread writeThread = new WriteThread(id_writer, line);
                         writeThread.executeOnExecutor(AsyncTask.THREAD_POOL_EXECUTOR);
                     }
@@ -150,13 +153,15 @@ public class Server extends AppCompatActivity {
     }
 
     class WriteThread extends AsyncTask {
-        private ArrayList<DataOutputStream> outputs;
-        String messageToSend;
+        private ArrayList<DataOutputStream> outputs; //flujos de mensajes de salida para distintos clientes
+        String messageToSend; //mensaje a enviar
 
+        //constructor para inicializar atributos de la clase
         public WriteThread(String id_writer, String messageToSend) {
             this.messageToSend = messageToSend;
             outputs = new ArrayList<>();
 
+            //creamos un flujo de datos de salida por cada cliente que hay conectado
             for (Map.Entry<String, Socket> client : clientes.entrySet()) {
                 try {
                     this.outputs.add(new DataOutputStream(client.getValue().getOutputStream()));
@@ -168,10 +173,10 @@ public class Server extends AppCompatActivity {
 
         @Override
         protected Object doInBackground(Object[] objects) {
-            for (DataOutputStream output : outputs) {
+            for (DataOutputStream output : outputs) {//recorremos todos los flujos de datos creados para cada cliente
                 try {
-                    output.writeUTF(messageToSend);
-                    output.flush();
+                    output.writeUTF(messageToSend); //escribimos el mensaje que vamos a enviar en el flujo de datos de salida
+                    output.flush(); //enviamos el flujo de datos con el nuevo mensaje
                 } catch (IOException e) {
                     e.printStackTrace();
                 }
