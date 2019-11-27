@@ -25,6 +25,7 @@ public class Server extends AppCompatActivity {
     public static final int SERVER_PORT = 1331;
     private Thread serverThread;
     private TextView textMessages;
+    private TextView textInfoServer;
     private HashMap<String, Socket> clientes;
 
 
@@ -35,8 +36,10 @@ public class Server extends AppCompatActivity {
         setContentView(R.layout.activity_main);
 
         textMessages = findViewById(R.id.textMessages);
+        textInfoServer = findViewById(R.id.textInfoServer);
         clientes = new HashMap<>();
-        ipserver();
+
+        textInfoServer.setText("Server with IP: " + ipserver() + ", working in port: " + SERVER_PORT);
 
         serverThread = new Thread(new ServerThread());
 
@@ -53,7 +56,7 @@ public class Server extends AppCompatActivity {
         }
     }
 
-    private void ipserver() {
+    private String ipserver() {
         WifiManager wifiManager;
         String ip;
 
@@ -61,6 +64,8 @@ public class Server extends AppCompatActivity {
         ip = getIpFormat(wifiManager.getConnectionInfo().getIpAddress());
 
         Log.d("INFORMATION", "IP Server: " + ip);
+
+        return ip;
     }
 
     private static String getIpFormat(int code) {
@@ -90,7 +95,7 @@ public class Server extends AppCompatActivity {
                 try {
                     socket = serverSocket.accept();
 
-                    String id_client = "ID"+socket.getInetAddress();
+                    String id_client = socket.getInetAddress().toString();
 
                     clientes.put(id_client, socket);
 
@@ -128,7 +133,7 @@ public class Server extends AppCompatActivity {
             while (!this.clientSocket.isClosed()) {
                 try {
                     read = input.readUTF();
-                    line = id_writer + " says: " + read;
+                    line = id_writer + "$" + read;
 
                     this.publishProgress();
 
@@ -158,10 +163,12 @@ public class Server extends AppCompatActivity {
             outputs = new ArrayList<>();
 
             for (Map.Entry<String, Socket> client : clientes.entrySet()) {
-                try {
-                    this.outputs.add(new DataOutputStream(client.getValue().getOutputStream()));
-                } catch (IOException e) {
-                    e.printStackTrace();
+                if(!client.getKey().equals(id_writer)) {
+                    try {
+                        this.outputs.add(new DataOutputStream(client.getValue().getOutputStream()));
+                    } catch (IOException e) {
+                        e.printStackTrace();
+                    }
                 }
             }
         }
